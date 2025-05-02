@@ -1,0 +1,111 @@
+#!/bin/bash
+
+# 从终端读取输入文件夹名称
+echo "Please enter the input folder name (e.g., ni-etio-hyperpolar):"
+read input_dir
+
+# 确认当前工作目录
+echo "Current working directory: $(pwd)"
+
+# 检查输入目录是否存在
+if [ ! -d "$input_dir" ]; then
+    echo "Error: Input directory $input_dir does not exist!"
+    exit 1
+fi
+
+# 创建输出文件夹 dealwith
+output_dir="dealwith"
+echo "Creating output directory: $output_dir"
+mkdir -p "$output_dir"
+if [ ! -d "$output_dir" ]; then
+    echo "Error: Failed to create output directory $output_dir!"
+    exit 1
+fi
+
+# 定义原始输出文件名（dealwith/ni-etio-deal，保持不变）
+original_output_file="$output_dir/ni-etio-deal"
+
+# 定义新输出文件名（基于输入文件夹名称加 -process，例如 dealwith/ni-etio-hyperpolar-process）
+processed_output_file="$output_dir/$input_dir-process"
+
+# 定义频率范围（提取 13 个值）
+conditions=$(seq 1 13)
+
+# 初始化一个数组存储提取的值
+magnitudes=()
+
+# 循环提取每个 polar-$cond.txt 文件中的 Magnitude 值
+for cond in $conditions; do
+    polar_file="$input_dir/polar-$cond.txt"
+    
+    # 检查文件是否存在
+    if [ -f "$polar_file" ]; then
+        # 提取 Magnitude of first hyperpolarizability 的值
+        magnitude=$(grep "Magnitude of first hyperpolarizability:" "$polar_file" | awk '{print $NF}')
+        
+        # 检查是否成功提取
+        if [ -n "$magnitude" ]; then
+            magnitudes+=("$magnitude")
+            echo "Extracted magnitude from $polar_file: $magnitude"
+        else
+            echo "Error: Could not extract magnitude from $polar_file (grep result is empty)"
+            magnitudes+=("0.0")  # 如果提取失败，写入 0.0 占位
+        fi
+    else
+        echo "Error: $polar_file does not exist"
+        magnitudes+=("0.0")  # 如果文件不存在，写入 0.0 占位
+    fi
+done
+
+# 反转数组（从 polar-13.txt 到 polar-1.txt 的顺序）
+reversed_magnitudes=()
+for ((i=${#magnitudes[@]}-1; i>=0; i--)); do
+    reversed_magnitudes+=("${magnitudes[$i]}")
+done
+
+# 将提取的值以横向格式输出（用逗号分隔）
+echo "Extracted hyperpolarizability values (horizontal format):"
+if [ ${#reversed_magnitudes[@]} -eq 0 ]; then
+    echo "No values extracted!"
+else
+    # 打印到终端
+    printf "%s" "${reversed_magnitudes[0]}"
+    for ((i=1; i<${#reversed_magnitudes[@]}; i++)); do
+        printf ", %s" "${reversed_magnitudes[$i]}"
+    done
+    echo ""
+
+    # 保存到新输出文件（横向格式）
+    echo "Saving processed values to $processed_output_file"
+    # 清空文件（如果存在）
+    : > "$processed_output_file"
+    # 写入第一个值
+    printf "%s" "${reversed_magnitudes[0]}" >> "$processed_output_file"
+    # 写入剩余值，确保逗号分隔且不换行
+    for ((i=1; i<${#reversed_magnitudes[@]}; i++)); do
+        printf ", %s" "${reversed_magnitudes[$i]}" >> "$processed_output_file"
+    done
+    
+    # 检查新文件是否成功生成
+    if [ -f "$processed_output_file" ]; then
+        echo "Processed values successfully saved to $processed_output_file"
+        echo "Processed file contents:"
+        cat "$processed_output_file"
+    else
+        echo "Error: Failed to save processed values to $processed_output_file!"
+        exit 1
+    fi
+
+    # 检查原始文件是否存在，并显示其内容
+    if [ -f "$original_output_file" ]; then
+        echo "Original file $original_output_file exists, contents:"
+        cat "$original_output_file"
+    else
+        echo "Original file $original_output_file does not exist."
+    fi
+fi
+if grep -q "<DOCUMENT>" "$processed_output_file"; then
+    tr '\r' '\n' < "$processed_output_file" | sed -n '/<DOCUMENT>/,/<\/DOCUMENT>/{/<DOCUMENT>/d;/<\/DOCUMENT>/d;s/^, //p}' | paste -d',' -s - > temp && mv temp "$processed_output_file"
+else
+    tr -d '\r' < "$processed_output_file" > temp && mv temp "$processed_output_file"
+fi
