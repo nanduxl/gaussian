@@ -1,2 +1,3 @@
 # gaussian
 gaussian处理超极化率，生成第一超极化率
+在shell中输入这个input文件，之后输出文件名+polar，之后输入这个fpolar文件，导出第一超极化率到deal文件夹下
