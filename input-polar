@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# 從終端讀取輸入文件名
+echo "Please enter the input file name (e.g., ni-etio-hyper.out):"
+read input_file
+
+# 檢查輸入文件是否存在
+if [ ! -f "$input_file" ]; then
+    echo "Error: Input file $input_file does not exist!"
+    exit 1
+fi
+
+# 提取基本名稱（去掉擴展名 .out）
+base_name=$(basename "$input_file" .out)
+
+# 構造輸出目錄名稱（基本名稱 + polar）
+output_dir="${base_name}polar"
+
+# 創建新目錄（如果不存在）
+mkdir -p "$output_dir"
+
+# 定義計算條件（頻率從 1 到 13）
+conditions=$(seq 1 13)
+
+# 循環執行每次計算
+for cond in $conditions; do
+    echo "Running calculation for condition: $cond"
+    
+    # 運行 Multiwfn，將日誌保存到新目錄
+    Multiwfn.exe "$input_file" << EOF 
+200
+7
+-1
+-2
+11
+1
+$cond
+2
+n
+0
+0
+q
+EOF
+    
+    # 檢查 polar.txt 是否生成，並重命名並移動到新目錄
+    if [ -f polar.txt ]; then
+        mv polar.txt "$output_dir/polar-$cond.txt"
+        echo "Output saved as $output_dir/polar-$cond.txt"
+    else
+        echo "Error: polar.txt was not generated for condition $cond"
+    fi
+done
